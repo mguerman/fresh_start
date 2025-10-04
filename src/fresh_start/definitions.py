@@ -1,8 +1,16 @@
-from pathlib import Path
+import os
+from dagster import Definitions
+from .defs.assets import build_assets_from_yaml
 
-from dagster import definitions, load_from_defs_folder
+BASE_DIR = os.path.dirname(__file__)
+yaml_path = os.path.join(BASE_DIR, "defs", "replication_raw_to_stage.yaml")
+print(f"Loading YAML from: {yaml_path}")
+assert os.path.isfile(yaml_path), f"YAML file not found at {yaml_path}"
 
+groups_list = ["test_data"]
 
-@definitions
-def defs():
-    return load_from_defs_folder(path_within_project=Path(__file__).parent)
+all_assets = build_assets_from_yaml(yaml_path, groups_list)
+
+defs = Definitions(
+    assets=all_assets
+)

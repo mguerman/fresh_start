@@ -1,0 +1,586 @@
+# The following structure created to support:
+#     Scalable: Easily add more groups and tables.
+#     Configurable: Each group has its own schedule.
+#     Dependency-aware: Supports execution order between groups.
+#     Clean separation: Logical grouping improves readability and maintainability.
+groups:
+
+  # Test entities   
+  - name: test_data
+    schedule: daily
+    dependency: null
+    tables:
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_divers_ethnic
+        enabled: true
+        transformation:
+          enabled: true
+          steps: ""
+
+  # Demographic   
+  - name: demographics_data
+    schedule: daily
+    dependency: null
+    tables:
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_divers_ethnic
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_ethnic_grp_cd
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_citizenship
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_pers_data_effdt
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_scc_pers_biog
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_visa_pmt_data
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_addresses
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_names
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_person
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+  # Admission Tables related
+  - name: admissions_data
+    schedule: daily
+    dependency: null
+    tables:
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_adm_appl_prog
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "remove_nulls, lowercase_names"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_adm_appl_plan
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_adm_appl_sbplan
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_acad_prog_tbl
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "standardize_dates"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_acad_plan_tbl
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_acad_prog
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "remove_duplicates"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_acad_plan
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_acad_subplan
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "normalize_codes"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_sad_appl_caf
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_bu_fa_schlr_dtl
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "standardize_currency"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_pkg_rel_itm_typ
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_bu_fa_schlr_sts
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "remove_nulls"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_test_comp
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "standardize_scores"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_sa_tcmp_rel_tbl
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_relationships
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "normalize_relationship_types"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_relation_affil
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_ext_acad_data
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "remove_duplicates"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_ext_acad_sum
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_ext_org_tbl
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "standardize_org_names"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_org_location
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_org_grouping
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "remove_nulls"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_adm_appl_data
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "standardize_dates"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_adm_appl_cmp
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_adm_eval_com
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "remove_duplicates"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_adm_appl_rcr_ca
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_recruit_cat_tbl
+        enabled: true
+        transformation:
+          enabled: true
+          steps: "normalize_category_codes"
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_adm_comments
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+  # Financial Aid related 
+  - name: financial_aid_data
+    schedule: daily
+    dependency: null
+    tables:
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_bu_fa_need_band
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_disb_id_split
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_disb_id_tbl
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_disb_plan_tbl
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_disb_split_cd
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_fed_p_calc
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_fed_s_calc
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_gl_interface
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inas_prof_ext
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_control
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_family
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_interpret
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_np_bas_cal
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_np_bas_calc
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_p_bas_calc
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_parent
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_parent_n
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_s_bas_calc
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_inst_student
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_isir_computed
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_isir_control
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_item_type_fa
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_item_type_tbl
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_aid_atrbt
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_awards
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_awrd_disb
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_awd_per
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_awd_pkg
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_awrd_actv
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_fa_term
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_pkg_var
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_term_bdgt
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_student_aid
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""

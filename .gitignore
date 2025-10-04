@@ -205,3 +205,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+.tmp_dagster_home_q_a098gn/history/runs.db
+.tmp_dagster_home_q_a098gn/history/runs/index.db
+.tmp_dagster_home_q_a098gn/schedules/schedules.db
