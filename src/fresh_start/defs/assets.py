@@ -1,6 +1,6 @@
 import yaml
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 from dagster import asset, AssetKey, AssetsDefinition
 
 
@@ -71,12 +71,18 @@ def create_asset(
             description=f"Transform data for {table_name} with steps: {transformation_steps}",
             deps=deps,
         )
-        def transform_asset(**kwargs) -> str:
-            source_func = f"{group}_{table_name}_source"
-            source_data = kwargs.get(source_func)
-            if source_data is None:
-                raise ValueError(f"Missing upstream source asset: {source_func}")
-            return source_data if not transformation_steps else f"Transformed ({transformation_steps}) data from: {source_data}"
+
+        # Transform asset: depends on source
+        def transform_asset(source: str) -> str:
+            # Validate that the source input was received
+            if source is None:
+                raise ValueError(f"Missing upstream source asset for: {group}.{table_name}.transform")
+
+            # Apply transformation steps if defined, otherwise pass through
+            if transformation_steps:
+                return f"Transformed ({transformation_steps}) data from: {source}"
+            else:
+                return source
 
         transform_asset.__name__ = func_name
         return transform_asset
@@ -94,11 +100,16 @@ def create_asset(
             description=f"Load data into {target_schema}.{table_name}",
             deps=deps,
         )
-        def target_asset(**kwargs) -> str:
-            upstream_data = kwargs.get(upstream_func_name)
+
+        # Target asset: depends on transform if enabled, otherwise source
+        def target_asset(transform: Optional[str] = None, source: Optional[str] = None) -> str:
+            # Use whichever upstream asset is available
+            upstream_data = transform if transform is not None else source
             if upstream_data is None:
-                raise ValueError(f"Missing upstream asset: {upstream_func_name}")
+                raise ValueError(f"Missing upstream asset for: {group}.{table_name}.target")
+
             return f"Loaded into {target_schema}.{table_name} from: {upstream_data}"
+
 
         target_asset.__name__ = func_name
         return target_asset
