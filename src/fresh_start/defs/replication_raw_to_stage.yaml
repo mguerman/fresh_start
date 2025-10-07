@@ -3,20 +3,69 @@
 #     Configurable: Each group has its own schedule.
 #     Dependency-aware: Supports execution order between groups.
 #     Clean separation: Logical grouping improves readability and maintainability.
+
+# # Test entities   - used for testing only
+# - name: test_data
+#   schedule: daily
+#   dependency: null
+#   tables:
+#     - source_schema: cs_fdw
+#       target_schema: mguerman
+#       table: ps_divers_ethnic
+#       enabled: true
+#       transformation:
+#         enabled: false
+#         steps: ""
+#
+#     - source_schema: cs_fdw
+#       target_schema: mguerman
+#       table: ps_ethnic_grp_tbl
+#       enabled: true
+#       transformation:
+#         enabled: false
+#         steps: ""
+#
+#    schedule: daily
+#    dependency: null
+#    tables:
+#      - source_schema: sad
+#        target_schema: cs_raw
+#        table: ps_acad_plan
+#        enabled: true
+#        transformation:
+#          enabled: false
+#          steps: ""
+
 groups:
 
-  # Test entities   
+  # Test entities   - used for testing only
   - name: test_data
     schedule: daily
     dependency: null
     tables:
       - source_schema: cs_fdw
         target_schema: cs_raw
-        table: ps_divers_ethnic
+        table: ps_stdnt_fa_term 
         enabled: true
         transformation:
-          enabled: true
+          enabled: false
           steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_stdnt_term_bdgt 
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""
+
+      - source_schema: cs_fdw
+        target_schema: cs_raw
+        table: ps_acad_prog_tbl 
+        enabled: true
+        transformation:
+          enabled: false
+          steps: ""          
 
   # Demographic   
   - name: demographics_data
@@ -33,7 +82,7 @@ groups:
 
       - source_schema: cs_fdw
         target_schema: cs_raw
-        table: ps_ethnic_grp_cd
+        table: ps_ethnic_grp_lang # corrected from req
         enabled: true
         transformation:
           enabled: false
@@ -105,8 +154,8 @@ groups:
         table: ps_adm_appl_prog
         enabled: true
         transformation:
-          enabled: true
-          steps: "remove_nulls, lowercase_names"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -129,8 +178,8 @@ groups:
         table: ps_acad_prog_tbl
         enabled: true
         transformation:
-          enabled: true
-          steps: "standardize_dates"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -145,8 +194,8 @@ groups:
         table: ps_acad_prog
         enabled: true
         transformation:
-          enabled: true
-          steps: "remove_duplicates"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -161,8 +210,8 @@ groups:
         table: ps_acad_subplan
         enabled: true
         transformation:
-          enabled: true
-          steps: "normalize_codes"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -177,8 +226,8 @@ groups:
         table: ps_bu_fa_schlr_dtl
         enabled: true
         transformation:
-          enabled: true
-          steps: "standardize_currency"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -193,16 +242,16 @@ groups:
         table: ps_bu_fa_schlr_sts
         enabled: true
         transformation:
-          enabled: true
-          steps: "remove_nulls"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
         table: ps_stdnt_test_comp
         enabled: true
         transformation:
-          enabled: true
-          steps: "standardize_scores"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -217,8 +266,8 @@ groups:
         table: ps_relationships
         enabled: true
         transformation:
-          enabled: true
-          steps: "normalize_relationship_types"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -233,8 +282,8 @@ groups:
         table: ps_ext_acad_data
         enabled: true
         transformation:
-          enabled: true
-          steps: "remove_duplicates"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -249,8 +298,8 @@ groups:
         table: ps_ext_org_tbl
         enabled: true
         transformation:
-          enabled: true
-          steps: "standardize_org_names"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -265,16 +314,16 @@ groups:
         table: ps_org_grouping
         enabled: true
         transformation:
-          enabled: true
-          steps: "remove_nulls"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
         table: ps_adm_appl_data
         enabled: true
         transformation:
-          enabled: true
-          steps: "standardize_dates"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -289,8 +338,8 @@ groups:
         table: ps_adm_eval_com
         enabled: true
         transformation:
-          enabled: true
-          steps: "remove_duplicates"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -305,8 +354,8 @@ groups:
         table: ps_recruit_cat_tbl
         enabled: true
         transformation:
-          enabled: true
-          steps: "normalize_category_codes"
+          enabled: false
+          steps: ""
 
       - source_schema: cs_fdw
         target_schema: cs_raw
@@ -420,14 +469,6 @@ groups:
       - source_schema: cs_fdw
         target_schema: cs_raw
         table: ps_inst_np_bas_cal
-        enabled: true
-        transformation:
-          enabled: false
-          steps: ""
-
-      - source_schema: cs_fdw
-        target_schema: cs_raw
-        table: ps_inst_np_bas_calc
         enabled: true
         transformation:
           enabled: false
