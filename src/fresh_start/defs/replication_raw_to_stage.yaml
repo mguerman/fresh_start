@@ -49,23 +49,7 @@ groups:
         enabled: true
         transformation:
           enabled: false
-          steps: ""
-
-      - source_schema: cs_fdw
-        target_schema: cs_raw
-        table: ps_stdnt_term_bdgt 
-        enabled: true
-        transformation:
-          enabled: false
-          steps: ""
-
-      - source_schema: cs_fdw
-        target_schema: cs_raw
-        table: ps_acad_prog_tbl 
-        enabled: true
-        transformation:
-          enabled: false
-          steps: ""          
+          steps: ""     
 
   # Demographic   
   - name: demographics_data

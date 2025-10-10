@@ -1,0 +1,5 @@
+query_limit: none
+
+# The following is not yet used
+transaction_commit_interval: 1000
+batch_size: 500
