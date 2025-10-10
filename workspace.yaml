@@ -1,0 +1,9 @@
+load_from:
+  - python_file:
+      relative_path: src/fresh_start/definitions.py
+      attribute: all_assets
+
+  - grpc_server:
+        host: dagster.ist-apps-cnt-sb.bu.edu
+              port: 4000
+                    location_name: "remote_dagster_sandbox"

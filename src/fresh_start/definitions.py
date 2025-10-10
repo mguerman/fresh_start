@@ -1,5 +1,5 @@
 import os
-from dagster import Definitions
+import dagster as dg
 from .defs.assets import build_assets_from_yaml
 from .defs.resources import PostgresResource
 
@@ -26,8 +26,23 @@ try:
 except KeyError as e:
     raise RuntimeError(f"Missing required environment variable: {e}")
 
+# Configure executor for heavy database workloads
+# Start conservative with 8 concurrent processes
+db_executor = dg.multiprocess_executor.configured({
+    "max_concurrent": 10  # for heavy DB operations
+})
+
+# Define a job that uses the executor
+replication_job = dg.define_asset_job(
+    name="replication_job",
+    selection="*",
+    executor_def=db_executor,
+    description="Replicates all assets with controlled concurrency"
+)
+
 # Register with Dagster
-defs = Definitions(
+defs = dg.Definitions(
     assets=all_assets,
-    resources={"postgres": postgres_resource}
+    resources={"postgres": postgres_resource},
+    jobs=[replication_job]
 )

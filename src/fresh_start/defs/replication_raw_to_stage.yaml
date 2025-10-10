@@ -43,9 +43,9 @@ groups:
     schedule: daily
     dependency: null
     tables:
-      - source_schema: cs_fdw
+      - source_schema: SYSADM
         target_schema: cs_raw
-        table: ps_stdnt_fa_term 
+        table: ps_divers_ethnic 
         enabled: true
         transformation:
           enabled: false

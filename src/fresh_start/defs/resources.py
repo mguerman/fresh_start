@@ -1,5 +1,3 @@
-# resources.py
-
 from dagster import ConfigurableResource
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
@@ -27,3 +25,5 @@ class PostgresResource(ConfigurableResource):
         engine = create_engine(db_url)
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         return SessionLocal()
+
+
