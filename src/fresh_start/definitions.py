@@ -11,7 +11,7 @@ print(f"Loading YAML from: {yaml_path}")
 assert os.path.isfile(yaml_path), f"YAML file not found at {yaml_path}"
 # groups_list = ["demographics_data", "admissions_data", "financial_aid_data"] # all the available groups for now
 # groups_list = ["test_data"] # use for test only
-groups_list = ["all"] 
+groups_list = ["batch3"] 
 all_assets = build_assets_from_yaml(yaml_path, groups_list)
 
 # Instantiate PostgresResource safely
