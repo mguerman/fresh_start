@@ -1,6 +1,15 @@
 from dagster import ConfigurableResource
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+import oracledb
+
+# No oracle client required for thin mode
+# oracledb.init_oracle_client(lib_dir=None) 
+
+# Enable thick mode by specifying the Instant Client directory if needed
+oracledb.init_oracle_client(lib_dir="/home/mguerman/oracle_client/instantclient_19_28")
+
+# print("Oracle client initialized successfully.")
 
 class PostgresResource(ConfigurableResource):
     """
@@ -27,3 +36,28 @@ class PostgresResource(ConfigurableResource):
         return SessionLocal()
 
 
+class OracleResource(ConfigurableResource):
+    """
+    Dagster resource for managing an Oracle database connection using SQLAlchemy and oracledb.
+    """
+
+    db_user: str
+    db_password: str
+    db_host: str
+    db_port: str
+    db_service: str  # Oracle typically uses service names
+
+    def get_session(self) -> Session:
+        """
+        Create and return a SQLAlchemy session instance for Oracle.
+
+        Returns:
+            A SQLAlchemy Session connected to the configured Oracle database.
+        """
+        db_url = (
+            f"oracle+oracledb://{self.db_user}:{self.db_password}"
+            f"@{self.db_host}:{self.db_port}/?service_name={self.db_service}"
+        )
+        engine = create_engine(db_url)
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        return SessionLocal()

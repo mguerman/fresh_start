@@ -54,7 +54,7 @@ def create_asset_oracle_postgres(
     table: Dict,
     stage: str,
     upstream_key: Optional[AssetKey] = None
-) -> AssetsDefinition:
+    ) -> AssetsDefinition:
     """
     Create Dagster assets for Oracle→Postgres pipeline using staged CSV files.
     """

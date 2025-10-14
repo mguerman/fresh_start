@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from dagster import Definitions, define_asset_job
-from src.fresh_start.definitions import all_assets, PostgresResource
+from src.fresh_start.definitions import all_assets, PostgresResource, OracleResource
 
 # Configure logging
 logging.basicConfig(
@@ -28,6 +28,16 @@ def create_postgres_resource():
         db_host=os.environ["DB_HOST"],
         db_port=os.environ["DB_PORT"],
         db_name=os.environ["DB_NAME"],
+    )
+
+def create_oracle_resource():
+    """Initialize OracleResource from environment variables."""
+    return OracleResource(
+        db_user=os.environ["ORACLE_DB_USER"],
+        db_password=os.environ["ORACLE_DB_PASSWORD"],
+        db_host=os.environ["ORACLE_DB_HOST"],
+        db_port=os.environ["ORACLE_DB_PORT"],
+        db_service=os.environ["ORACLE_DB_SERVICE"],
     )
 
 def materialize_batch(batch_num, total_batches, assets_batch, resources):
@@ -61,7 +71,11 @@ def materialize_batch(batch_num, total_batches, assets_batch, resources):
         logging.warning(f"Batch {batch_num} failed to materialize some assets.")
         return False
 def main():
-    resources = {"postgres": create_postgres_resource()}
+    resources = {
+        "postgres": create_postgres_resource(),
+        "oracle": create_oracle_resource(),  # <-- add this
+    }
+
     assets = list(all_assets)
     batch_size = 100
     total_batches = (len(assets) + batch_size - 1) // batch_size
