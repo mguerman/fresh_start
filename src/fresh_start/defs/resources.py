@@ -7,7 +7,7 @@ import oracledb
 # oracledb.init_oracle_client(lib_dir=None) 
 
 # Enable thick mode by specifying the Instant Client directory if needed
-oracledb.init_oracle_client(lib_dir="/home/mguerman/oracle_client/instantclient_19_28")
+oracledb.init_oracle_client(lib_dir="/etc/oracle_client/instantclient_23_26/")
 
 # print("Oracle client initialized successfully.")
 

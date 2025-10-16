@@ -1,21 +1,118 @@
-from lib2to3.fixes.fix_input import context
+import asyncio
+import oracledb
+
 import time
 from typing import Dict, Optional
-
 from dagster import asset, AssetKey, AssetIn, AssetsDefinition
 
 from sqlalchemy import text, Table, Column, MetaData
 from sqlalchemy import String, Integer, DateTime, Float, Boolean
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-
+from sqlalchemy.ext.asyncio import AsyncSession
+from io import StringIO
 
 # Retry and batching constants
 MAX_ATTEMPTS = 3
 INITIAL_DELAY = 5  # seconds
-BATCH_SIZE = 500000
+BATCH_SIZE = 10000
 
 limit: Optional[int] = None  # Global row limit, if needed
+
+async def fetch_oracle_batches(
+    context,
+    oracle_sql: str,
+    column_names: list[str],
+    pg_session,
+    pg_table,
+    all_columns: list[str],
+    table_created: bool,
+    target_schema: str,
+    table_name: str
+    ) -> int:
+    """
+    Fetches data from Oracle in async batches and inserts into PostgreSQL.
+
+    Args:
+        context: Dagster context with logging and resources.
+        oracle_sql: Base SQL query to paginate.
+        column_names: Expected Oracle column names.
+        pg_session: SQLAlchemy session for PostgreSQL.
+        pg_table: SQLAlchemy table object for inserts.
+        all_columns: List of all columns for copy_from or insert.
+        table_created: Whether the target table already exists.
+        target_schema: PostgreSQL schema name.
+        table_name: PostgreSQL table name.
+
+    Returns:
+        Total number of rows inserted.
+    """
+
+    # Create async Oracle session from Dagster resource
+    session_factory = context.resources.oracle.get_async_session(context)
+    async with session_factory() as oracle_session:
+        # Get raw connection and cursor
+        async with (await oracle_session.connection()) as conn:
+            async with conn.cursor() as cursor:
+                offset = 0
+                batch_number = 1
+                rowcount = 0
+
+                while True:
+                    # Paginate the Oracle SQL query
+                    paginated_sql = (
+                        f"SELECT * FROM ({oracle_sql}) "
+                        f"OFFSET {offset} ROWS FETCH NEXT {BATCH_SIZE} ROWS ONLY"
+                    )
+
+                    await cursor.execute(paginated_sql)
+                    batch = await cursor.fetchall()
+
+                    if not batch:
+                        break  # No more data
+
+                    context.log.info(f"Batch {batch_number}: Fetched {len(batch)} rows")
+
+                    # Convert rows to dicts using column names
+                    rows_to_insert = [
+                        {desc[0].lower(): val for desc, val in zip(cursor.description, row)}
+                        for row in batch
+                    ]
+
+                    context.log.info(f"Batch {batch_number}: Prepared {len(rows_to_insert)} rows for insert")
+
+                    if not rows_to_insert:
+                        continue  # Skip empty batches
+
+                    if table_created:
+                        # Use PostgreSQL COPY for bulk insert
+                        buffer = StringIO()
+                        for row in rows_to_insert:
+                            buffer.write('\t'.join(str(row.get(col, '') or '') for col in all_columns) + '\n')
+                        buffer.seek(0)
+
+                        raw_conn = pg_session.connection().connection
+                        pg_cursor = raw_conn.cursor()
+                        pg_cursor.copy_from(
+                            buffer,
+                            f'"{target_schema}.{table_name}"',
+                            sep='\t',
+                            columns=all_columns
+                        )
+                        raw_conn.commit()
+                    else:
+                        # Use INSERT with conflict handling
+                        insert_stmt = pg_insert(pg_table).values(rows_to_insert)
+                        insert_stmt = insert_stmt.on_conflict_do_nothing(index_elements=["row_hash"])
+                        pg_session.execute(insert_stmt)
+                        pg_session.commit()
+
+                    rowcount += len(rows_to_insert)
+                    offset += BATCH_SIZE
+                    batch_number += 1
+
+    return rowcount
+
 
 def get_limit_clause(dialect: str = "postgres") -> str:
     """
@@ -286,7 +383,18 @@ def create_asset_oracle_to_postgres(
             ins={upstream_stage: AssetIn(key=upstream_asset_key)},
         )
 
-        def target_asset(context, *, skip_existing_table: bool = skip_existing_table, **kwargs) -> str:
+        async def target_asset(context, *, skip_existing_table: bool = skip_existing_table, **kwargs) -> str:
+            """
+            Dagster asset that replicates data from Oracle to PostgreSQL in async batches.
+
+            Args:
+                context: Dagster context with access to resources and logging.
+                skip_existing_table: Whether to skip table creation if it already exists.
+                kwargs: Contains upstream SQL under the key `upstream_stage`.
+
+            Returns:
+                A message indicating how many rows were inserted.
+            """
             upstream_sql = kwargs.get(upstream_stage)
             if not upstream_sql:
                 raise ValueError(f"Missing upstream SQL for {group}.{table_name}.target")
@@ -297,12 +405,14 @@ def create_asset_oracle_to_postgres(
 
             while attempt < MAX_ATTEMPTS:
                 try:
-                    with context.resources.oracle.get_session() as oracle_session, \
-                        context.resources.postgres.get_session() as pg_session:
+                    # Create async sessions for metadata and table checks
+                    oracle_session_factory = context.resources.oracle.get_async_session()
+                    pg_session_factory = context.resources.postgres.get_async_session()
 
-                        # Check if table exists
+                    async with oracle_session_factory() as oracle_session, pg_session_factory() as pg_session:
+                        # Check if target table exists in PostgreSQL
                         context.log.debug(f"Checking existence of {target_schema}.{table_name}")
-                        result = pg_session.execute(
+                        result = await pg_session.execute(
                             text("""
                                 SELECT EXISTS (
                                     SELECT 1 FROM information_schema.tables
@@ -315,7 +425,7 @@ def create_asset_oracle_to_postgres(
                         table_created = not table_exists
 
                         # Fetch Oracle column metadata
-                        columns = oracle_session.execute(
+                        result = await oracle_session.execute(
                             text("""
                                 SELECT column_name, data_type
                                 FROM all_tab_columns
@@ -323,10 +433,13 @@ def create_asset_oracle_to_postgres(
                                 ORDER BY column_id
                             """),
                             {"schema": source_schema.upper(), "table": table_name.upper()}
-                        ).fetchall()
+                        )
+                        columns = await result.fetchall()
+
                         if not columns:
                             raise RuntimeError(f"No columns found in Oracle table {source_schema}.{table_name}")
 
+                        # Map Oracle columns to PostgreSQL types
                         column_names, pg_types = zip(*[
                             (
                                 col.column_name.lower() if hasattr(col, "column_name") else col[0].lower(),
@@ -334,6 +447,8 @@ def create_asset_oracle_to_postgres(
                             )
                             for col in columns
                         ])
+
+                        # Define column definitions for table creation
                         col_defs = [
                             f'"{name}" {pg_type().compile(dialect=postgresql.dialect())}'
                             for name, pg_type in zip(column_names, pg_types)
@@ -343,22 +458,23 @@ def create_asset_oracle_to_postgres(
                             '"row_hash" text',
                         ]
 
-                        if table_created:
-                            # Create table and index
+                        if table_created and not skip_existing_table:
+                            # Create target table
                             create_table_sql = f'CREATE TABLE "{target_schema}"."{table_name}" ({", ".join(col_defs)});'
-                            context.log.info(f"Creating Postgres table structure:\n{create_table_sql}")
-                            pg_session.execute(text(create_table_sql))
-                            pg_session.commit()
+                            context.log.info(f"Creating Postgres table:\n{create_table_sql}")
+                            await pg_session.execute(text(create_table_sql))
+                            await pg_session.commit()
 
+                            # Create unique index on row_hash
                             create_index_sql = f'''
                                 CREATE UNIQUE INDEX idx_{table_name}_row_hash
                                 ON "{target_schema}"."{table_name}" (row_hash);
                             '''
-                            context.log.info(f"Creating unique index:\n{create_index_sql}")
-                            pg_session.execute(text(create_index_sql))
-                            pg_session.commit()
+                            context.log.info(f"Creating index:\n{create_index_sql}")
+                            await pg_session.execute(text(create_index_sql))
+                            await pg_session.commit()
 
-                        # Compose Oracle query
+                        # Compose Oracle query with metadata columns and row hash
                         concat_expr = " || '|' || ".join([
                             f"NVL(TO_CHAR(t.{col.upper()}), '')" for col in column_names
                         ])
@@ -370,9 +486,7 @@ def create_asset_oracle_to_postgres(
                             f"FROM ({oracle_sql}) t"
                         )
 
-                        oracle_result = oracle_session.execute(text(fetch_sql))
-
-                        # Define Postgres table for INSERT
+                        # Define SQLAlchemy table object for PostgreSQL inserts
                         metadata = MetaData()
                         pg_table = Table(
                             table_name,
@@ -384,45 +498,19 @@ def create_asset_oracle_to_postgres(
                             schema=target_schema
                         )
 
-                        rowcount = 0
+                        # Prepare column list and run async batch fetch
                         all_columns = list(column_names) + ["dl_inserteddate", "dl_insertedby", "row_hash"]
-
-                        for batch_number, batch in enumerate(batch_iterator(oracle_result, BATCH_SIZE), start=1):
-                            context.log.info(f"Batch {batch_number}: Fetched batch size: {len(batch)}")
-                            rows_to_insert = [
-                                {k: v for k, v in row._mapping.items()}
-                                for row in batch
-                            ]
-                            context.log.info(f"Batch {batch_number}: Prepared {len(rows_to_insert)} rows for insert")
-
-                            if not rows_to_insert:
-                                continue
-
-                            if table_created:
-                                # COPY for initial load
-                                from io import StringIO
-                                buffer = StringIO()
-                                for row in rows_to_insert:
-                                    buffer.write('\t'.join(str(row.get(col, '') or '') for col in all_columns) + '\n')
-                                buffer.seek(0)
-
-                                raw_conn = pg_session.connection().connection
-                                pg_cursor = raw_conn.cursor()
-                                pg_cursor.copy_from(
-                                    buffer,
-                                    f'"{target_schema}.{table_name}"',  # ✅ Fully quoted name
-                                    sep='\t',
-                                    columns=all_columns
-                                )
-                                raw_conn.commit()
-                            else:
-                                # INSERT for incremental
-                                insert_stmt = pg_insert(pg_table).values(rows_to_insert)
-                                insert_stmt = insert_stmt.on_conflict_do_nothing(index_elements=["row_hash"])
-                                pg_session.execute(insert_stmt)
-                                pg_session.commit()
-
-                            rowcount += len(rows_to_insert)
+                        rowcount = await fetch_oracle_batches(
+                            context,
+                            fetch_sql,
+                            column_names,
+                            pg_session,
+                            pg_table,
+                            all_columns,
+                            table_created,
+                            target_schema,
+                            table_name
+                        )
 
                         context.log.info(f"Inserted {rowcount} rows into {target_schema}.{table_name}")
                         return f"Inserted {rowcount} rows into {target_schema}.{table_name}"
@@ -433,7 +521,7 @@ def create_asset_oracle_to_postgres(
                     if attempt >= MAX_ATTEMPTS:
                         raise RuntimeError(f"Failed to load data into {target_schema}.{table_name} after {MAX_ATTEMPTS} attempts: {e}")
                     context.log.info(f"Sleeping for {delay} seconds before retry...")
-                    time.sleep(delay)
+                    await asyncio.sleep(delay)
                     delay *= 2
 
             return "No operation performed"

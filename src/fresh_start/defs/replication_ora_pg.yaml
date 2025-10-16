@@ -12,10 +12,10 @@ groups:
     dependency: null
     tables:
       - source_schema: SYSADM
-        target_schema: mguerman
-        table: ps_divers_ethnic 
-        source_db: oracle     # new attribute identifying source DB type
-        target_db: postgres   # new attribute identifying target DB type
+        target_schema: cs_raw
+        table: ps_audit_cartrm 
+        source_db: oracle
+        target_db: postgres
         enabled: true
         transformation:
           enabled: false
