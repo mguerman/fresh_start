@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 # Retry and batching constants
 MAX_ATTEMPTS = 3
 INITIAL_DELAY = 5  # seconds
-BATCH_SIZE = 500000
+BATCH_SIZE = 1000
 
 limit: Optional[int] = None  # Global row limit, if needed
 

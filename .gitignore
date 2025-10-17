@@ -8,6 +8,7 @@ __pycache__/
 
 # Temp files and folders
 .tmp*
+*.csv*
 
 # Other logs
 *.db
