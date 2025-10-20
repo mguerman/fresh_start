@@ -91,7 +91,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    num_partitions = 50  # Adjust as needed for concurrency/load balancing
+    num_partitions = 10  # Adjust as needed for concurrency/load balancing
 
     unique_index_cols = get_unique_index_columns(cfg, owner, table)
     if not unique_index_cols:

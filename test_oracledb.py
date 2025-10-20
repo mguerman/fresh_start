@@ -1,7 +1,4 @@
 import oracledb
-from oracledb.constants import ThinMode
 
-print(ThinMode.ASYNC)
-# print(oracledb.__file__)
-
-#p rint(oracledb.ThinMode.ASYNC)
+oracledb.init_oracle_client(lib_dir="/home/mguerman/oracle_client/instantclient_19_28")
+print("Oracle client initialized successfully.")
