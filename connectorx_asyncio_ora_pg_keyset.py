@@ -594,7 +594,7 @@ async def main():
         owner,
         table,
         unique_index_cols,
-        batch_size=60000,
+        batch_size=200000,
         max_workers=1,
         expected_columns=expected_columns,
     ):
