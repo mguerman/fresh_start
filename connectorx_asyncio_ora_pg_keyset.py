@@ -488,17 +488,43 @@ async def async_fetch_batches(
         offset += batch_size * max_workers
 
 def escape_newlines_in_df(df: pd.DataFrame) -> pd.DataFrame:
-    for col in df.select_dtypes(include=[object]).columns:
-        df[col] = df[col].astype(str).str.replace('\n', '\\n').str.replace('\r', '\\n')
+    """
+    Replace newlines and carriage returns in string columns with literal '\n' characters.
+    Leaves NaN and '\\N' sentinel values unchanged.
+    """
+    str_cols = df.select_dtypes(include=['object']).columns
+    df = df.copy()
+    for col in str_cols:
+        df[col] = df[col].where(
+            df[col].isna() | (df[col] == '\\N'),
+            df[col].str.replace('\n', '\\n').str.replace('\r', '\\n'),
+        )
     return df
 
-def copy_batch_to_postgres(engine: Engine, table_name: str, dataframe: pd.DataFrame, oracle_columns: list) -> None:
+def fix_null_timestamps(df: pd.DataFrame, oracle_columns: list) -> pd.DataFrame:
+    df = df.copy()
+    for col_name, oracle_type, *_ in oracle_columns:
+        col = col_name.lower()
+        if col not in df.columns:
+            continue
+        oracle_type_up = oracle_type.strip().upper()
+        if oracle_type_up in {"DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP WITH LOCAL TIME ZONE"}:
+            # Replace string "\N" or empty strings with NaT
+            df.loc[df[col] == '\\N', col] = pd.NaT
+            df.loc[df[col] == '', col] = pd.NaT
+            # Convert to datetime to ensure proper type
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+    return df
+
+def copy_batch_to_postgres(engine: Engine, table_name: str, dataframe: pd.DataFrame, oracle_columns: List) -> None:
     if dataframe.empty:
         print("Empty DataFrame; skipping copy.")
         return
 
+    # Normalize dataframe schema and types before escaping newlines
     dataframe = normalize_dataframe(dataframe, oracle_columns)
-    dataframe = escape_newlines_in_df(dataframe)   # <-- escape newlines here
+    dataframe = fix_null_timestamps(dataframe, oracle_columns)
+    dataframe = escape_newlines_in_df(dataframe)
 
     buffer = io.StringIO()
     dataframe.to_csv(
@@ -506,9 +532,9 @@ def copy_batch_to_postgres(engine: Engine, table_name: str, dataframe: pd.DataFr
         sep='\t',
         header=False,
         index=False,
-        na_rep='\\N',
+        na_rep='NULL',
         quoting=csv.QUOTE_NONE,
-        escapechar='\\'
+        escapechar=None
     )
     buffer.seek(0)
 
@@ -527,7 +553,7 @@ def copy_batch_to_postgres(engine: Engine, table_name: str, dataframe: pd.DataFr
             cursor.execute(f"SET search_path TO {schema}")
 
         columns = [col[0].lower() for col in oracle_columns]
-        cursor.copy_from(buffer, raw_table_name, sep='\t', null='\\N', columns=columns)
+        cursor.copy_from(buffer, raw_table_name, sep='\t', null='NULL', columns=columns)
         conn.commit()
         print(f"Copied {len(dataframe)} rows into {table_name}")
     except Exception as error:
