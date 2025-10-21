@@ -6,11 +6,12 @@ import csv
 import re
 import gc
 import time
-from datetime import datetime, date 
 from contextlib import contextmanager
 
-from typing import List, Optional, Tuple, Any, AsyncGenerator
-from datetime import datetime
+import numpy as np
+import datetime
+
+from typing import List, Optional, Tuple, Any, AsyncGenerator, Generator
 
 import concurrent.futures
 
@@ -248,7 +249,7 @@ def sql_literal(val):
     if isinstance(val, datetime):
         formatted = val.strftime('%Y-%m-%d %H:%M:%S')
         return f"TO_TIMESTAMP('{formatted}', 'YYYY-MM-DD HH24:MI:SS')"
-    if isinstance(val, date):
+    if isinstance(val, datetime.date):
         formatted = val.strftime('%Y-%m-%d')
         return f"TO_DATE('{formatted}', 'YYYY-MM-DD')"
     escaped = str(val).replace("'", "''")
@@ -263,32 +264,41 @@ def build_where_clause_for_keyset(columns):
         return f"({cols}) > ({placeholders})"
 
 def build_lexicographical_where(columns, last_key_values):
-    """
-    Build WHERE condition for lexicographical keyset paging for Oracle.
+    if not last_key_values:
+        return ""  # No WHERE clause for the first batch
 
-    columns: list of column names
-    last_key_values: tuple of last key values corresponding to columns
-
-    Returns SQL WHERE string with embedded literals (no bind params).
-    """
-    if last_key_values is None:
-        return ""
+    assert len(columns) == len(last_key_values), "Mismatch between columns and key values"
 
     conditions = []
     for i in range(len(columns)):
-        equal_parts = " AND ".join(
-            f"{columns[j]} = {sql_literal(last_key_values[j])}"
-            for j in range(i)
-        )
-        greater_part = f"{columns[i]} > {sql_literal(last_key_values[i])}"
-        if equal_parts:
-            condition = f"({equal_parts} AND {greater_part})"
-        else:
-            condition = greater_part
-        conditions.append(condition)
+        parts = []
+        for j in range(i):
+            col = columns[j]
+            val = last_key_values[j]
+            parts.append(f"{col} = {format_sql_value(val)}")
+        col = columns[i]
+        val = last_key_values[i]
+        parts.append(f"{col} > {format_sql_value(val)}")
+        condition = " AND ".join(parts)
+        conditions.append(f"({condition})")
 
-    where_clause = " OR ".join(conditions)
-    return f"WHERE ({where_clause})"
+    where_clause = "WHERE " + " OR ".join(conditions)
+    return where_clause
+
+def format_sql_value(val):
+    if val is None:
+        return "NULL"
+    elif isinstance(val, str):
+        escaped = val.replace("'", "''")
+        return f"'{escaped}'"
+    elif isinstance(val, (int, float, np.integer, np.floating)):
+        return str(val)
+    elif isinstance(val, (datetime.datetime, np.datetime64)):
+        if isinstance(val, np.datetime64):
+            val = pd.to_datetime(val).to_pydatetime()
+        return f"TO_TIMESTAMP('{val.isoformat()}', 'YYYY-MM-DD\"T\"HH24:MI:SS.FF')"
+    else:
+        raise ValueError(f"Unsupported value type: {type(val)}")
 
 def fetch_batch_keyset(dsn, owner, table, columns, last_key_values, batch_size):
     base_order = ", ".join(columns)
@@ -324,7 +334,7 @@ async def async_fetch_batches_keyset(
     finished_workers = 0
 
     async def fetch(worker_id: int) -> Tuple[pd.DataFrame, float]:
-        key = last_keys[worker_id]  # can be None for first call
+        key = last_keys[worker_id]  # None for first fetch
         return await loop.run_in_executor(
             executor,
             fetch_batch_keyset,
@@ -332,12 +342,11 @@ async def async_fetch_batches_keyset(
             owner,
             table,
             order_columns,
-            key,  # pass None okay for fetching first batch
+            key,
             batch_size,
         )
 
-    tasks = [fetch(worker_id) for worker_id in range(max_workers)]
-
+    tasks = [fetch(i) for i in range(max_workers)]
     while finished_workers < max_workers:
         results = await asyncio.gather(*tasks)
         new_tasks = []
@@ -345,62 +354,79 @@ async def async_fetch_batches_keyset(
 
         for worker_id, (df, fetch_duration) in enumerate(results):
             if df.empty:
-                print(f"Worker {worker_id} finished: empty batch")
+                print(f"[Worker {worker_id}] empty batch, marking finished.")
                 finished_workers += 1
                 last_keys[worker_id] = None
                 continue
 
-            n_rows = len(df)
-            print(f"Worker {worker_id} fetched {n_rows} rows, fetch time: {fetch_duration:.2f}s")
-
+            # Ensure all expected columns present
             if expected_columns is not None:
                 for col in expected_columns:
                     if col not in df.columns:
                         df[col] = pd.NA
                 df = df[expected_columns]
 
+            n_rows = len(df)
+            print(f"[Worker {worker_id}] fetched {n_rows} rows in {fetch_duration:.2f}s")
+
             new_last_key = tuple(df.iloc[-1][col] for col in order_columns)
 
             if last_keys[worker_id] == new_last_key:
-                print(f"Worker {worker_id} no progress on last key, marking finished")
+                print(f"[Worker {worker_id}] last key did not advance, marking finished.")
                 finished_workers += 1
                 last_keys[worker_id] = None
                 continue
 
-            if n_rows < batch_size:
-                print(f"Worker {worker_id} fetched less than batch_size ({n_rows} < {batch_size}), marking finished")
-                finished_workers += 1
-                last_keys[worker_id] = None
-                yielded_any = True
-                yield df, fetch_duration
-                continue
-
-            # Update last key for next fetch
+            # Update last key for next batch fetch
             last_keys[worker_id] = new_last_key
+
+            # If less than batch size, this is final batch
+            if n_rows < batch_size:
+                print(f"[Worker {worker_id}] fetched last partial batch, marking finished.")
+                finished_workers += 1
 
             yielded_any = True
             yield df, fetch_duration
-            new_tasks.append(fetch(worker_id))
+
+            # Re-queue fetching only if not finished
+            if last_keys[worker_id] is not None:
+                new_tasks.append(fetch(worker_id))
 
         if not yielded_any:
-            print("No batches yielded in this iteration, finishing")
+            print("No batches yielded this iteration, finishing loop.")
             break
 
         tasks = new_tasks
         gc.collect()
 
-def keyset_pagination_loop(dsn, owner, table, columns, batch_size=1000):
+def keyset_pagination_loop(
+    dsn: str,
+    owner: str,
+    table: str,
+    columns: List[str],
+    batch_size: int = 1000
+) -> Generator[pd.DataFrame, None, None]:
     """
     Generator that yields batches of DataFrame using keyset pagination.
     """
-    last_key = None
+    last_key: Optional[tuple] = None
+
     while True:
         df = fetch_batch_keyset(dsn, owner, table, columns, last_key, batch_size)
+
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError(f"Expected pandas DataFrame, got {type(df)}")
+
         if df.empty:
             break
+
         yield df
-        # Extract last key values from this batch
-        last_key = tuple(df.iloc[-1][col] for col in columns)
+
+        # Extract last key values from this batch safely
+        if not df.empty:
+            last_key = tuple(df.iloc[-1][col] for col in columns)
+        else:
+            last_key = None
 
 def fetch_batch_offset(dsn, owner, table, columns, offset, batch_size):
     import time
@@ -461,14 +487,29 @@ async def async_fetch_batches(
 
         offset += batch_size * max_workers
 
+def escape_newlines_in_df(df: pd.DataFrame) -> pd.DataFrame:
+    for col in df.select_dtypes(include=[object]).columns:
+        df[col] = df[col].astype(str).str.replace('\n', '\\n').str.replace('\r', '\\n')
+    return df
+
 def copy_batch_to_postgres(engine: Engine, table_name: str, dataframe: pd.DataFrame, oracle_columns: list) -> None:
     if dataframe.empty:
         print("Empty DataFrame; skipping copy.")
         return
 
     dataframe = normalize_dataframe(dataframe, oracle_columns)
+    dataframe = escape_newlines_in_df(dataframe)   # <-- escape newlines here
+
     buffer = io.StringIO()
-    dataframe.to_csv(buffer, sep='\t', header=False, index=False, na_rep='\\N', quoting=csv.QUOTE_MINIMAL)
+    dataframe.to_csv(
+        buffer,
+        sep='\t',
+        header=False,
+        index=False,
+        na_rep='\\N',
+        quoting=csv.QUOTE_NONE,
+        escapechar='\\'
+    )
     buffer.seek(0)
 
     if '.' in table_name:
@@ -481,20 +522,23 @@ def copy_batch_to_postgres(engine: Engine, table_name: str, dataframe: pd.DataFr
     try:
         conn = engine.raw_connection()
         cursor = conn.cursor()
+
         if schema:
             cursor.execute(f"SET search_path TO {schema}")
+
         columns = [col[0].lower() for col in oracle_columns]
         cursor.copy_from(buffer, raw_table_name, sep='\t', null='\\N', columns=columns)
         conn.commit()
+        print(f"Copied {len(dataframe)} rows into {table_name}")
     except Exception as error:
         print(f"Failed to copy data to PostgreSQL: {error}")
-        if conn is not None:
+        if conn:
             conn.rollback()
         raise
     finally:
-        if cursor is not None:
+        if cursor:
             cursor.close()
-        if conn is not None:
+        if conn:
             conn.close()
 
 async def main():
@@ -525,7 +569,7 @@ async def main():
         table,
         unique_index_cols,
         batch_size=60000,
-        max_workers=5,
+        max_workers=1,
         expected_columns=expected_columns,
     ):
         copy_start = time.monotonic()
@@ -539,11 +583,11 @@ async def main():
         print(f"✅ Processed batch with last key: {last_key}; Oracle fetch: {int(mins_fetch)}m {secs_fetch:.1f}s, Postgres copy: {int(mins_copy)}m {secs_copy:.1f}s")
 
 if __name__ == "__main__":
-    from datetime import datetime
-    start_time = datetime.now()
+
+    start_time = datetime.datetime.now()
     print(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     asyncio.run(main())
 
-    end_time = datetime.now()
+    end_time = datetime.datetime.now()
     print(f"End time: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
