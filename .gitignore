@@ -13,6 +13,7 @@ __pycache__/
 # Other logs
 *.db
 *.log
+*.*
 
 # Distribution / packaging
 .Python
