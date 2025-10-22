@@ -112,7 +112,8 @@ def normalize_dataframe(df: pd.DataFrame, oracle_columns: list) -> pd.DataFrame:
     return df
 
 
-def init_oracle_thick(lib_dir="/home/mguerman/oracle_client/instantclient_19_28/"):
+# def init_oracle_thick(lib_dir="/home/mguerman/oracle_client/instantclient_19_28/"): - local
+def init_oracle_thick(lib_dir="/etc/oracle_client/instantclient_23_26/"): # remote
     print(f"Initializing Oracle thick client from {lib_dir}")
     oracledb.init_oracle_client(lib_dir=lib_dir)
 
@@ -233,7 +234,7 @@ def create_postgres_table(pg_url, schema, table, oracle_columns):
     # Add metadata columns
     columns.append(Column("dl_inserteddate", DateTime(), server_default=text("now()")))
     columns.append(Column("dl_insertedby", String(), server_default=text("'system'")))
-    columns.append(Column("row_hash", String(), nullable=True))  # Will be computed later
+    columns.append(Column("row_hash", String(), nullable=True))  # Precomputed at source
 
     pg_table = Table(table.lower(), metadata, *columns)
     metadata.create_all(engine, checkfirst=True)
@@ -534,7 +535,7 @@ def copy_batch_to_postgres(engine: Engine, table_name: str, dataframe: pd.DataFr
         index=False,
         na_rep='NULL',
         quoting=csv.QUOTE_NONE,
-        escapechar=None
+        escapechar='\\'
     )
     buffer.seek(0)
 
@@ -572,7 +573,7 @@ async def main():
     init_oracle_thick()
 
     owner = "SYSADM"
-    table = "PS_STDNT_FA_TERM"
+    table = "PS_AUDIT_CARTRM"
     pg_schema = "cs_raw"
     dsn_cx = build_connectorx_dsn(cfg['oracle'])
     pg_url = build_postgres_url(cfg["postgres"])
@@ -594,7 +595,7 @@ async def main():
         owner,
         table,
         unique_index_cols,
-        batch_size=200000,
+        batch_size=100000,
         max_workers=1,
         expected_columns=expected_columns,
     ):
