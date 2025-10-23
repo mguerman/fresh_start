@@ -66,7 +66,9 @@ def create_asset_postgres_to_postgres(
     table: Dict,
     stage: str,
     skip_existing_table: bool = True,
-    upstream_key: Optional[AssetKey] = None
+    upstream_key: Optional[AssetKey] = None,
+    description: Optional[str] = None,
+    metadata: Optional[Dict] = None,
     ) -> AssetsDefinition:
     """
     Postgres to Postgres pipeline assets builder.
@@ -143,7 +145,10 @@ def create_asset_postgres_to_postgres(
 
             create_structure_sql = f'CREATE TABLE IF NOT EXISTS "{target_schema}"."{table_name}" AS SELECT * FROM ({wrapped_sql} LIMIT 0) t;'
 
-            create_index_sql = f'CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_row_hash ON "{target_schema}"."{table_name}" (row_hash);'
+            create_index_sql = f'''
+                CREATE UNIQUE INDEX idx_{table_name}_row_hash
+                ON "{target_schema}"."{table_name}" (row_hash);
+            '''
 
             insert_sql = (
                 f'INSERT INTO "{target_schema}"."{table_name}" '

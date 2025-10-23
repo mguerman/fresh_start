@@ -1,7 +1,7 @@
 import yaml
 from typing import List, Dict, Optional, Union
 from pathlib import Path
-from dagster import AssetKey, AssetsDefinition, AssetIn
+from dagster import AssetKey, AssetsDefinition
 
 from .asset_creators import (
     create_asset_postgres_to_postgres,
@@ -38,24 +38,37 @@ def create_asset(
     stage: str,
     skip_existing_table: bool = True,
     upstream_key: Optional[AssetKey] = None,
-    ) -> AssetsDefinition:
+    description: Optional[str] = None,
+    metadata: Optional[Dict[str, Union[str, int, float, bool]]] = None,
+) -> AssetsDefinition:
     source_db = table.get("source_db", "postgres").lower()
     target_db = table.get("target_db", "postgres").lower()
 
     if source_db == "postgres" and target_db == "postgres":
         return create_asset_postgres_to_postgres(
-            group, table, stage, skip_existing_table=skip_existing_table, upstream_key=upstream_key
+            group,
+            table,
+            stage,
+            skip_existing_table=skip_existing_table,
+            upstream_key=upstream_key,
+            description=description,
+            metadata=metadata,
         )
     elif source_db == "oracle" and target_db == "postgres":
         return create_asset_oracle_to_postgres(
-            group, table, stage, skip_existing_table=skip_existing_table, upstream_key=upstream_key
+            group,
+            table,
+            stage,
+            skip_existing_table=skip_existing_table,
+            upstream_key=upstream_key,
+            description=description,
+            metadata=metadata,
         )
     else:
         raise ValueError(
             f"Unsupported source-target database combination: '{source_db}' -> '{target_db}'. "
             "Supported: oracle->postgres, postgres->postgres."
         )
-
 # ────────────────────────────────────────────────────────────────────────────────
 # Build Dagster assets from YAML config
 # ────────────────────────────────────────────────────────────────────────────────
@@ -82,21 +95,49 @@ def build_assets_from_yaml(yaml_path: Union[str, Path], groups_list: List[str]) 
             if not table.get("enabled", False):
                 continue
 
+            description = f"Table: {table['source_schema']}.{table['table']}"
+            metadata = {
+                "source_schema": table["source_schema"],
+                "target_schema": table.get("target_schema", ""),
+                "table_name": table["table"]
+            }
+
             # Create source asset
-            source_asset = create_asset(group_name, table, "source")
+            source_asset = create_asset(
+                group_name,
+                table,
+                "source",
+                description=description,
+                metadata=metadata,
+            )
             assets.append(source_asset)
             source_key = AssetKey([group_name, table["table"], "source"])
 
             # Create transform asset if enabled
             if table.get("transformation", {}).get("enabled", False):
-                transform_asset = create_asset(group_name, table, "transform", upstream_key=source_key)
+                transform_asset = create_asset(
+                    group_name,
+                    table,
+                    "transform",
+                    upstream_key=source_key,
+                    description=description,
+                    metadata=metadata,
+                )
                 assets.append(transform_asset)
                 upstream_key = AssetKey([group_name, table["table"], "transform"])
             else:
                 upstream_key = source_key
 
             # Create target asset depending on upstream asset
-            target_asset_obj = create_asset(group_name, table, "target", upstream_key=upstream_key)
+            target_asset_obj = create_asset(
+                group_name,
+                table,
+                "target",
+                False,
+                upstream_key=upstream_key,
+                description=description,
+                metadata=metadata,
+            )
             assets.append(target_asset_obj)
 
-    return assets    
+    return assets
