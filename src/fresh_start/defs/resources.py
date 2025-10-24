@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker, Session
 import oracledb
 
 # Load config
-with open("config.yaml", "r") as f:
+with open("configs/config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 # Oracle Instant Client initialization (thick mode enabled)
