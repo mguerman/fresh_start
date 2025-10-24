@@ -1,20 +1,30 @@
-from dagster import ConfigurableResource
+import os
+from dagster import ConfigurableResource, resource
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import oracledb
 
-# No oracle client required for thin mode
-# oracledb.init_oracle_client(lib_dir=None) 
-
-# Enable thick mode by specifying the Instant Client directory if needed
+# Oracle Instant Client initialization (thick mode enabled)
 oracledb.init_oracle_client(lib_dir="/etc/oracle_client/instantclient_23_26/")
 
-# print("Oracle client initialized successfully.")
+# -----------------------------------
+# Group Resource for Job-specific Group Name
+# -----------------------------------
+@resource(config_schema={"group_name": str})
+def group_resource(context):
+    """
+    Provides the current job's assigned group name as a resource.
+    """
+    return context.resource_config["group_name"]
 
+
+# -----------------------------------
+# Postgres Resource
+# -----------------------------------
 class PostgresResource(ConfigurableResource):
     """
     Dagster resource for managing a PostgreSQL connection using SQLAlchemy.
-    Each field is a string, resolved from environment variables or config.
+    Config parameters are strings, typically loaded from environment variables.
     """
 
     db_user: str
@@ -36,6 +46,9 @@ class PostgresResource(ConfigurableResource):
         return SessionLocal()
 
 
+# -----------------------------------
+# Oracle Resource
+# -----------------------------------
 class OracleResource(ConfigurableResource):
     """
     Dagster resource for managing an Oracle database connection using SQLAlchemy and oracledb.

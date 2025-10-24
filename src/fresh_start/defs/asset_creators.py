@@ -1,7 +1,7 @@
 import time
 from typing import Dict, Optional
 
-from dagster import asset, AssetKey, AssetIn, AssetsDefinition
+from dagster import asset, AssetKey, AssetIn, AssetsDefinition, OpExecutionContext
 
 from sqlalchemy import text, Table, Column, MetaData
 from sqlalchemy import String, Integer, DateTime, Float, Boolean

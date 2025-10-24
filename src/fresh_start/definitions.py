@@ -2,33 +2,22 @@ import os
 import re
 import yaml
 import dagster as dg
+
 from .defs.assets import build_assets_from_yaml
 from .defs.resources import PostgresResource, OracleResource
+from .util import load_enabled_groups, yaml_path
 
-prefix = 'q'  # Example prefix to filter groups
+# Get enabled group list.
+groups_list = load_enabled_groups(yaml_path, prefix=None)  # or prefix='h'
+print(f"Enabled groups: {groups_list}")
 
-BASE_DIR = os.path.dirname(__file__)
-yaml_path = os.path.join(BASE_DIR, "defs", "replication_mapping_generated.yaml")
+# Load assets for all enabled groups combined (all groups together for Dagster assets scope)
+all_assets = []
+for group in groups_list:
+    group_assets = build_assets_from_yaml(yaml_path, [group])  # Only load the one group
+    all_assets.extend(group_assets)
 
-print(f"Loading YAML from: {yaml_path}")
-assert os.path.isfile(yaml_path), f"YAML file not found at {yaml_path}"
-
-def get_enabled_groups_with_prefix_from_yaml(path, prefix):
-    assert isinstance(prefix, str) and len(prefix) == 1, "Prefix must be a single character string"
-    pattern = re.compile(rf"^{re.escape(prefix)}", re.IGNORECASE)
-    with open(path) as f:
-        data = yaml.safe_load(f)
-    groups = data.get("groups", [])
-    filtered = [g["name"] for g in groups if g.get("enabled") and g.get("name") and pattern.match(g["name"])]
-    return filtered
-
-groups_list = get_enabled_groups_with_prefix_from_yaml(yaml_path, prefix)
-print(f"Enabled groups starting with '{prefix}': {groups_list}")
-
-# Load assets for these groups
-all_assets = build_assets_from_yaml(yaml_path, groups_list)
-
-# Initialize resources — assuming environment variables exist
+# Initialize database resources from environment variables
 postgres_resource = PostgresResource(
     db_user=os.environ["DB_USER"],
     db_password=os.environ["DB_PASSWORD"],
@@ -45,16 +34,17 @@ oracle_resource = OracleResource(
     db_service=os.environ["ORACLE_DB_SERVICE"],
 )
 
+# Configure multiprocess executor for heavy DB workloads
 db_executor = dg.multiprocess_executor.configured({"max_concurrent": 10})
-max_parallel_jobs = 8
-concurrency_key_name = "replication_jobs_group"
 
+# Prepare jobs and schedules with per-job resource config for the group_resource
 replication_jobs = []
 schedules = []
 
 for group in groups_list:
     job_name = f"replication_job_{group}"
 
+    # Define job selecting assets of this group
     job = dg.define_asset_job(
         name=job_name,
         selection=dg.AssetSelection.groups(group),
@@ -63,20 +53,31 @@ for group in groups_list:
     )
     replication_jobs.append(job)
 
+    # Create schedule per job (adjust timing as needed)
     schedule = dg.ScheduleDefinition(
-        job_name=job_name,
-        cron_schedule="0 2 * * *",  # Daily at 2 AM UTC
-        execution_timezone="America/New_York",
-        # concurrency_key=concurrency_key_name,
-        # concurrency_limit=max_parallel_jobs,
-    )
-    schedules.append(schedule)
+    job_name=job_name,
+    cron_schedule="0 2 * * *",  # Daily at 2 AM UTC
+    execution_timezone="America/New_York",
+    run_config={
+        "resources": {
+            "group": {
+                "config": {"group_name": group}
+            },
+            # Optionally add other resource configs here, or rely on env vars
+        }
+    },
+    # concurrency_key=..., concurrency_limit=... # Uncomment if supported and needed
+)
+schedules.append(schedule)
 
+# Construct definition with all assets, jobs, and shared resources
+# NOTE: here the base resource dict does not set 'group' because group resource is per-job configured on execution
 defs = dg.Definitions(
     assets=all_assets,
     resources={
         "postgres": postgres_resource,
         "oracle": oracle_resource,
+        # We do NOT set 'group' here at repo-level because it's job-level configured below
     },
     jobs=replication_jobs,
     schedules=schedules,
