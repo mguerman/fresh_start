@@ -8,7 +8,7 @@ from .defs.util import load_enabled_groups, yaml_path
 
 # Get enabled group list.
 yaml_path_obj = Path(yaml_path)
-groups_list = load_enabled_groups(yaml_path_obj, prefix='h')
+groups_list = load_enabled_groups(yaml_path_obj, prefix='t')
 print(f"Enabled groups: {groups_list}")
 
 # Load assets for all enabled groups combined (all groups together for Dagster assets scope)
@@ -44,33 +44,33 @@ replication_jobs = []
 schedules = []
 
 for group in groups_list:
-    job_name = f"replication_job_{group}"
+    group_name = group.get("name")
+    if group_name is None:
+        continue
 
-    # Define job selecting assets of this group
+    job_name = f"replication_job_{group_name}"
+
     job = dg.define_asset_job(
         name=job_name,
-        selection=dg.AssetSelection.groups(group),
+        selection=dg.AssetSelection.groups(group_name),
         executor_def=db_executor,
-        description=f"Replicates assets for group: {group}",
+        description=f"Replicates assets for group: {group_name}",
     )
     replication_jobs.append(job)
 
-    # Create schedule per job (adjust timing as needed)
     schedule = dg.ScheduleDefinition(
-    job_name=job_name,
-    cron_schedule="0 2 * * *",  # Daily at 2 AM UTC
-    execution_timezone="America/New_York",
-    run_config={
-        "resources": {
-            "group": {
-                "config": {"group_name": group}
-            },
-            # Optionally add other resource configs here, or rely on env vars
-        }
-    },
-    # concurrency_key=..., concurrency_limit=... # Uncomment if supported and needed
-)
-schedules.append(schedule)
+        job_name=job_name,
+        cron_schedule="0 2 * * *",
+        execution_timezone="America/New_York",
+        run_config={
+            "resources": {
+                "group": {
+                    "config": {"group_name": group_name}
+                }
+            }
+        },
+    )
+    schedules.append(schedule)
 
 # Construct definition with all assets, jobs, and shared resources
 # NOTE: here the base resource dict does not set 'group' because group resource is per-job configured on execution

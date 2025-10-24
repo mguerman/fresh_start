@@ -217,6 +217,8 @@ def create_asset_oracle_to_postgres(
     stage: str,
     skip_existing_table: bool = True,
     upstream_key: Optional[AssetKey] = None,
+    description: Optional[str] = None,
+    metadata: Optional[Dict] = None,
     ) -> AssetsDefinition:
     """
     Create Dagster assets for Oracle-to-Postgres replication stages.
