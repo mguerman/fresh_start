@@ -1,6 +1,4 @@
 import os
-import re
-import yaml
 import dagster as dg
 
 from .defs.assets import build_assets_from_yaml
