@@ -8,7 +8,7 @@ from .defs.util import load_enabled_groups, yaml_path
 
 # Load enabled group names from YAML
 yaml_path_obj = Path(yaml_path)
-groups_list = load_enabled_groups(yaml_path_obj, prefix='t')
+groups_list = load_enabled_groups(yaml_path_obj, prefix='q')
 group_names = [group.get("name") for group in groups_list if group.get("name")]
 
 print(f"Enabled group names: {group_names}")
