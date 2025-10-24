@@ -3,16 +3,17 @@ import dagster as dg
 
 from .defs.assets import build_assets_from_yaml
 from .defs.resources import PostgresResource, OracleResource
-from .util import load_enabled_groups, yaml_path
+from .defs.util import load_enabled_groups, yaml_path
 
 # Get enabled group list.
-groups_list = load_enabled_groups(yaml_path, prefix=None)  # or prefix='h'
+groups_list = load_enabled_groups(yaml_path, prefix='h')  # or prefix='h'
 print(f"Enabled groups: {groups_list}")
 
 # Load assets for all enabled groups combined (all groups together for Dagster assets scope)
 all_assets = []
 for group in groups_list:
-    group_assets = build_assets_from_yaml(yaml_path, [group])  # Only load the one group
+    group_name = group.get("name")
+    group_assets = build_assets_from_yaml(yaml_path, [group_name])  # Only load the one group
     all_assets.extend(group_assets)
 
 # Initialize database resources from environment variables
