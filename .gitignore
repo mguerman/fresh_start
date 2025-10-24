@@ -14,6 +14,7 @@ __pycache__/
 *.db
 *.log
 .*
+config.yaml
 
 # Distribution / packaging
 .Python

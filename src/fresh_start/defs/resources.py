@@ -1,11 +1,16 @@
-import os
+import yaml
 from dagster import ConfigurableResource, resource
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import oracledb
 
+# Load config
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
 # Oracle Instant Client initialization (thick mode enabled)
-oracledb.init_oracle_client(lib_dir="/etc/oracle_client/instantclient_23_26/")
+lib_dir = config["oracle"]["lib_dir"]
+oracledb.init_oracle_client(lib_dir=lib_dir)
 
 # -----------------------------------
 # Group Resource for Job-specific Group Name
