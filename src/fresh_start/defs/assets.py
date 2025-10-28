@@ -1,143 +1,50 @@
-import yaml
-from typing import List, Dict, Optional, Union
-from pathlib import Path
-from dagster import AssetKey, AssetsDefinition
+from typing import List, Dict
+from dagster import AssetsDefinition, AssetKey
+from .asset_creators import create_source_asset, create_transform_asset, create_target_asset
 
-from .asset_creators import (
-    create_asset_postgres_to_postgres,
-    create_asset_oracle_to_postgres,
-)
+def build_assets_from_yaml(yaml_path: str, groups_list: List[Dict]) -> List[AssetsDefinition]:
+    all_assets = []
 
-# ────────────────────────────────────────────────────────────────────────────────
-# Load YAML configuration and filter by group names
-# ────────────────────────────────────────────────────────────────────────────────
-# requires newer Python > 3.10
-# def load_yaml_groups(yaml_path: str | Path, groups_list: List[str]) -> List[Dict]:
-def load_yaml_groups(yaml_path: Union[str, Path], groups_list: List[str]) -> List[Dict]:
-    """
-    Load YAML file and filter for specified group names.
-
-    Args:
-        yaml_path: Path to the YAML config file.
-        groups_list: List of group names to include.
-
-    Returns:
-        List of group dictionaries matching the specified names.
-    """
-    with open(yaml_path, "r") as file:
-        data = yaml.safe_load(file)
-    return [group for group in data.get("groups", []) if group.get("name") in groups_list]
-
-
-# ────────────────────────────────────────────────────────────────────────────────
-# Create a Dagster asset for a given stage: source, transform, or target
-# ────────────────────────────────────────────────────────────────────────────────
-def create_asset(
-    group: str,
-    table: Dict,
-    stage: str,
-    skip_existing_table: bool = True,
-    upstream_key: Optional[AssetKey] = None,
-    description: Optional[str] = None,
-    metadata: Optional[Dict[str, Union[str, int, float, bool]]] = None,
-) -> AssetsDefinition:
-    source_db = table.get("source_db", "postgres").lower()
-    target_db = table.get("target_db", "postgres").lower()
-
-    if source_db == "postgres" and target_db == "postgres":
-        return create_asset_postgres_to_postgres(
-            group,
-            table,
-            stage,
-            skip_existing_table=skip_existing_table,
-            upstream_key=upstream_key,
-            description=description,
-            metadata=metadata,
-        )
-    elif source_db == "oracle" and target_db == "postgres":
-        return create_asset_oracle_to_postgres(
-            group,
-            table,
-            stage,
-            skip_existing_table=skip_existing_table,
-            upstream_key=upstream_key,
-            description=description,
-            metadata=metadata,
-        )
-    else:
-        raise ValueError(
-            f"Unsupported source-target database combination: '{source_db}' -> '{target_db}'. "
-            "Supported: oracle->postgres, postgres->postgres."
-        )
-# ────────────────────────────────────────────────────────────────────────────────
-# Build Dagster assets from YAML config
-# ────────────────────────────────────────────────────────────────────────────────
-# not supported in Python < 3.10
-# def build_assets_from_yaml(yaml_path: str | Path, groups_list: List[str]) -> List[AssetsDefinition]:
-def build_assets_from_yaml(yaml_path: Union[str, Path], groups_list: List[str]) -> List[AssetsDefinition]:
-    """
-    Build Dagster assets from YAML config, wiring dependencies:
-       source → transform (optional) → target.
-
-    Args:
-        yaml_path: Path to the YAML asset config file.
-        groups_list: List of group names to include.
-
-    Returns:
-        List of Dagster AssetsDefinition objects.
-    """
-    selected_groups = load_yaml_groups(yaml_path, groups_list)
-    assets: List[AssetsDefinition] = []
-
-    for group in selected_groups:
+    for group in groups_list:
         group_name = group["name"]
-        for table in group.get("tables", []):
-            if not table.get("enabled", False):
-                continue
+        tables = group.get("tables", [])
 
-            description = f"Table: {table['source_schema']}.{table['table']}"
-            metadata = {
-                "source_schema": table["source_schema"],
-                "target_schema": table.get("target_schema", ""),
-                "table_name": table["table"]
-            }
+        for table in tables:
+            table_name = table["table"]
+            upstream_key = AssetKey([group_name, table_name, "source"])
+
+            # --- Get per-table DBs from YAML
+            source_db = table.get("source_db")
+            target_db = table.get("target_db")
+
+            if source_db is None or target_db is None:
+                raise ValueError(
+                    f"Table '{table_name}' in group '{group_name}' must specify source_db and target_db."
+                )
 
             # Create source asset
-            source_asset = create_asset(
-                group_name,
-                table,
-                "source",
-                description=description,
-                metadata=metadata,
+            source = create_source_asset(group_name, table)
+            if source is not None:
+                all_assets.append(source)
+
+            # Create transform asset (may be None if disabled)
+            transform = create_transform_asset(group_name, table, upstream_key)
+            if transform is not None:
+                all_assets.append(transform)
+                # If transform exists, update upstream_key for target
+                upstream_key = AssetKey([group_name, table_name, "transform"])
+
+            # Create target asset (always depends on upstream_key, which may be source or transform)
+            
+            target = create_target_asset(
+                            group_name,
+                            table,
+                            upstream_key,
+                            source_db=source_db,
+                            target_db=target_db,
             )
-            assets.append(source_asset)
-            source_key = AssetKey([group_name, table["table"], "source"])
 
-            # Create transform asset if enabled
-            if table.get("transformation", {}).get("enabled", False):
-                transform_asset = create_asset(
-                    group_name,
-                    table,
-                    "transform",
-                    upstream_key=source_key,
-                    description=description,
-                    metadata=metadata,
-                )
-                assets.append(transform_asset)
-                upstream_key = AssetKey([group_name, table["table"], "transform"])
-            else:
-                upstream_key = source_key
+            if target is not None:
+                all_assets.append(target)
 
-            # Create target asset depending on upstream asset
-            target_asset_obj = create_asset(
-                group_name,
-                table,
-                "target",
-                False,
-                upstream_key=upstream_key,
-                description=description,
-                metadata=metadata,
-            )
-            assets.append(target_asset_obj)
-
-    return assets
+    return all_assets

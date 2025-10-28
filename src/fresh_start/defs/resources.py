@@ -4,13 +4,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import oracledb
 
-# Load config
-with open("configs/config.yaml", "r") as f:
+# Load your config.yaml here once, or via environment variable
+with open("configs/config.yaml") as f:
     config = yaml.safe_load(f)
 
 # Oracle Instant Client initialization (thick mode enabled)
-lib_dir = config["oracle"]["lib_dir"]
-oracledb.init_oracle_client(lib_dir=lib_dir)
+oracledb.init_oracle_client(lib_dir=config["oracle"]["lib_dir"])
+
+@resource(config_schema={"group_name": str})
+def group_resource(context):
+    return context.resource_config["group_name"]
 
 # -----------------------------------
 # Group Resource for Job-specific Group Name

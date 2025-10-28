@@ -7,3 +7,23 @@ load_from:
         host: dagster.ist-apps-cnt-sb.bu.edu
               port: 4000
                     location_name: "remote_dagster_sandbox"
+
+  - grpc_server:
+        host: dagster.ist-apps-cnt-sb.bu.edu
+              port: 4001
+                    location_name: "group_t1"
+
+#  - grpc_server:
+#        host: dagster.ist-apps-cnt-sb.bu.edu
+#              port: 4002
+#                    location_name: "group_t2"
+
+#  - grpc_server:
+#        host: dagster.ist-apps-cnt-sb.bu.edu
+#              port: 4003
+#                    location_name: "group_t3"
+
+#  - grpc_server:
+#        host: dagster.ist-apps-cnt-sb.bu.edu
+#              port: 4004
+#                    location_name: "group_t4"
