@@ -406,13 +406,30 @@ def _get_definitions():
     return _get_definitions_for_location(group_prefix=group_prefix)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MODULE-LEVEL DEFINITIONS (Optional)
+# MODULE-LEVEL DEFINITIONS (For gRPC servers)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Only create module-level definitions if not in location-specific mode
-if not os.environ.get("LOCATION_GROUP") and not os.environ.get("SKIP_MODULE_DEFS"):
+group_prefix = os.environ.get("GROUP_PREFIX")
+location_group = os.environ.get("LOCATION_GROUP")
+
+if group_prefix or location_group:
+    # gRPC server mode - create filtered definitions
     try:
         defs = get_defs()
+        print(f"📍 gRPC Server Mode - Loaded {len(defs.assets)} assets for prefix/group: {group_prefix or location_group}")
+    except Exception as e:
+        print(f"❌ Failed to create definitions for {group_prefix or location_group}: {e}")
+        # Create empty definitions to prevent server crash
+        defs = dg.Definitions(assets=[], resources={}, jobs=[], schedules=[])
+elif not os.environ.get("SKIP_MODULE_DEFS"):
+    # Local development mode - load all
+    try:
+        defs = get_defs()
+        print(f"🌍 Local Mode - Loaded {len(defs.assets)} assets (all groups)")
     except Exception:
         # If module-level definition fails, create empty definitions
         defs = dg.Definitions(assets=[], resources={}, jobs=[], schedules=[])
+else:
+    # Skip module definitions entirely
+    defs = dg.Definitions(assets=[], resources={}, jobs=[], schedules=[])
