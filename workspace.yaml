@@ -1,29 +1,25 @@
 load_from:
-  - python_file:
-      relative_path: src/fresh_start/definitions.py
-      attribute: all_assets
+  - grpc_server:
+      host: dagster.ist-apps-cnt-sb.bu.edu
+      port: 4000
+      location_name: "ora_groups"
 
   - grpc_server:
-        host: dagster.ist-apps-cnt-sb.bu.edu
-              port: 4000
-                    location_name: "remote_dagster_sandbox"
+      host: dagster.ist-apps-cnt-sb.bu.edu
+      port: 4001
+      location_name: "g_groups"
 
   - grpc_server:
-        host: dagster.ist-apps-cnt-sb.bu.edu
-              port: 4001
-                    location_name: "group_t1"
+      host: dagster.ist-apps-cnt-sb.bu.edu
+      port: 4002
+      location_name: "h_groups"
 
-#  - grpc_server:
-#        host: dagster.ist-apps-cnt-sb.bu.edu
-#              port: 4002
-#                    location_name: "group_t2"
+  - grpc_server:
+      host: dagster.ist-apps-cnt-sb.bu.edu
+      port: 4003
+      location_name: "z_groups"
 
-#  - grpc_server:
-#        host: dagster.ist-apps-cnt-sb.bu.edu
-#              port: 4003
-#                    location_name: "group_t3"
-
-#  - grpc_server:
-#        host: dagster.ist-apps-cnt-sb.bu.edu
-#              port: 4004
-#                    location_name: "group_t4"
+  - grpc_server:
+      host: dagster.ist-apps-cnt-sb.bu.edu
+      port: 4004
+      location_name: "excl_groups"
