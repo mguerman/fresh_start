@@ -7,19 +7,29 @@ load_from:
   - grpc_server:
       host: dagster.ist-apps-cnt-sb.bu.edu
       port: 4001
-      location_name: "g_groups"
+      location_name: "d_groups"
 
   - grpc_server:
       host: dagster.ist-apps-cnt-sb.bu.edu
       port: 4002
-      location_name: "h_groups"
+      location_name: "f_groups"
 
   - grpc_server:
       host: dagster.ist-apps-cnt-sb.bu.edu
       port: 4003
-      location_name: "z_groups"
+      location_name: "g_groups"
 
   - grpc_server:
       host: dagster.ist-apps-cnt-sb.bu.edu
       port: 4004
+      location_name: "h_groups"
+
+  - grpc_server:
+      host: dagster.ist-apps-cnt-sb.bu.edu
+      port: 4005
+      location_name: "z_groups"
+
+  - grpc_server:
+      host: dagster.ist-apps-cnt-sb.bu.edu
+      port: 4006
       location_name: "excl_groups"

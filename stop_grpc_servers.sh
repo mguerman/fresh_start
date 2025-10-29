@@ -15,10 +15,12 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 declare -A SERVERS=(
     ["ora"]=4000
-    ["g"]=4001
-    ["h"]=4002
-    ["z"]=4003
-    ["excl"]=4004
+    ["d"]=4001
+    ["f"]=4002
+    ["g"]=4003
+    ["h"]=4004
+    ["z"]=4005
+    ["excl"]=4006
 )
 
 stop_server() {

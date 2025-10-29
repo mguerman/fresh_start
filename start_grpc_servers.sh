@@ -9,10 +9,12 @@ MODULE_NAME="src.fresh_start.definitions"
 
 declare -A SERVERS=(
     ["ora"]=4000
-    ["g"]=4001
-    ["h"]=4002
-    ["z"]=4003
-    ["excl"]=4004
+    ["d"]=4001
+    ["f"]=4002
+    ["g"]=4003
+    ["h"]=4004
+    ["z"]=4005
+    ["excl"]=4006
 )
 
 # Colors for output
@@ -102,20 +104,16 @@ start_server() {
     # Wait time based on expected server size
     local wait_time=5  # Default
     case $prefix in
-        "g")
-            wait_time=60  # g has ~60k assets
-            log_info "⏳ Waiting ${wait_time}s for large g prefix (59,678 assets)..."
-            ;;
         "excl")
             wait_time=30  # excl has ~30k assets
             log_info "⏳ Waiting ${wait_time}s for large excl prefix..."
             ;;
-        "h")
+        "h"|"d"|"f"|"g")
             wait_time=20  # h has ~15k assets
             log_info "⏳ Waiting ${wait_time}s for medium h prefix (14,946 assets)..."
             ;;
         "ora"|"z")
-            wait_time=5   # Small prefixes
+            wait_time=10   # Small prefixes
             log_info "⏳ Waiting ${wait_time}s for small $prefix prefix..."
             ;;
     esac

@@ -21,49 +21,16 @@ _cache_lock = threading.Lock()
 BASE_DIR = Path(__file__).parent
 YAML_PATH = BASE_DIR / "defs" / "replication_mapping_generated.yaml"
 LOGS_DIR = BASE_DIR.parent.parent / "logs"
+FAST_MODE = os.environ.get("DAGSTER_FAST_MODE", "false").lower() == "true"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LOGGING UTILITIES
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _setup_location_logging(target_group=None, group_prefix=None):
-    """Setup location-specific logging with proper handlers."""
-    LOGS_DIR.mkdir(exist_ok=True)
-
-    # Determine log identifier
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if target_group:
-        log_id = f"group_{target_group}"
-    elif group_prefix:
-        log_id = f"prefix_{group_prefix}"
-    else:
-        log_id = "all"
-    
-    log_file = LOGS_DIR / f"dagster_location_{log_id}_{timestamp}.log"
-    
-    # Create logger with unique name to avoid conflicts
-    logger_name = f"dagster.location.{log_id}.{os.getpid()}"
-    logger = logging.getLogger(logger_name)
-    
-    # Only configure if not already configured
-    if not logger.handlers:
-        logger.setLevel(logging.INFO)
-        logger.propagate = False  # Prevent duplicate messages
-        
-        # File handler
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(logging.Formatter(
-            "%(asctime)s [PID:%(process)d] %(levelname)s - %(message)s"
-        ))
-        logger.addHandler(file_handler)
-        
-        # Console handler for gRPC servers
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(message)s"
-        ))
-        logger.addHandler(console_handler)
-    
+    """Minimal logging setup."""
+    logger = logging.getLogger(f"dagster.minimal.{os.getpid()}")
+    logger.setLevel(logging.ERROR)  # Only errors
     return logger
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -286,50 +253,42 @@ def _create_jobs_and_schedules(filtered_groups, all_groups, logger=None):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _get_definitions_for_location(target_group=None, group_prefix=None):
-    """
-    Build Dagster definitions for a specific group or filtered by prefix.
+    """Build Dagster definitions with minimal logging."""
+
+    if FAST_MODE:
+        # Skip all logging and validation for maximum speed
+        all_groups = _load_all_yaml_data()
+        filtered_groups = _validate_and_filter_groups(all_groups, target_group, group_prefix)
+        all_assets = build_assets_from_yaml(str(YAML_PATH), filtered_groups)
+        resources = _create_shared_resources()
+        jobs, schedules = _create_jobs_and_schedules(filtered_groups, all_groups)
+        
+        return dg.Definitions(
+            assets=all_assets,
+            resources=resources, 
+            jobs=jobs,
+            schedules=schedules,
+        )
     
-    Args:
-        target_group: Target a specific group by name
-        group_prefix: Target groups by prefix (legacy support)
-    
-    Returns:
-        dg.Definitions: Complete Dagster definitions
-    
-    Raises:
-        ValueError: If invalid parameters or no groups found
-    """
-    # Setup logging
     logger = _setup_location_logging(target_group, group_prefix)
-    logger.info(f"🔄 Building definitions - PID: {os.getpid()}")
-    logger.info(f"   target_group={target_group}, group_prefix={group_prefix}")
     
     try:
         # Load all groups from YAML (cached)
-        logger.info("📖 Loading YAML data...")
         all_groups = _load_all_yaml_data()
-        logger.info(f"✅ Loaded {len(all_groups)} total groups")
         
         # Validate and filter groups
-        logger.info("🔍 Filtering groups...")
         filtered_groups = _validate_and_filter_groups(
-            all_groups, target_group, group_prefix, logger
+            all_groups, target_group, group_prefix, None  # No logger
         )
         
         # Build assets
-        logger.info("🏗️ Building assets...")
         all_assets = build_assets_from_yaml(str(YAML_PATH), filtered_groups)
-        logger.info(f"✅ Built {len(all_assets)} assets")
         
         # Create resources
-        logger.info("🔧 Creating resources...")
         resources = _create_shared_resources()
-        logger.info(f"✅ Created {len(resources)} resources")
         
         # Create jobs and schedules
-        logger.info("📋 Creating jobs and schedules...")
-        jobs, schedules = _create_jobs_and_schedules(filtered_groups, all_groups, logger)
-        logger.info(f"✅ Created {len(jobs)} jobs, {len(schedules)} schedules")
+        jobs, schedules = _create_jobs_and_schedules(filtered_groups, all_groups, None)
         
         # Build final definitions
         definitions = dg.Definitions(
@@ -339,28 +298,15 @@ def _get_definitions_for_location(target_group=None, group_prefix=None):
             schedules=schedules,
         )
         
-        # Success summary
-        group_names = [g.get('name') for g in filtered_groups]
-        logger.info(f"🎉 Definitions complete!")
-        logger.info(f"   Assets: {len(all_assets)}")
-        logger.info(f"   Jobs: {len(jobs)}")
-        logger.info(f"   Schedules: {len(schedules)}")
-        logger.info(f"   Groups: {group_names}")
+        # Single minimal output
+        print(f"✅ {len(all_assets)} assets loaded")
         
         return definitions
         
     except Exception as e:
-        logger.error(f"❌ Failed to build definitions: {e}")
-        
-        # For gRPC servers, fail fast
-        if target_group or group_prefix:
-            logger.error("💥 gRPC server will not start due to definition failure")
-            raise
-        
-        # For legacy compatibility, return empty definitions
-        logger.warning("⚠️ Returning empty definitions for legacy compatibility")
-        return dg.Definitions(assets=[], resources={}, jobs=[], schedules=[])
-
+        print(f"❌ Failed: {e}")
+        raise
+    
 # ═══════════════════════════════════════════════════════════════════════════════
 # PUBLIC API FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
