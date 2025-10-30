@@ -21,6 +21,8 @@ from .defs.assets import build_assets_from_yaml
 from .defs.resources import PostgresResource, OracleResource
 from .defs.util import load_enabled_groups
 
+from dagster import multiprocess_executor
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # GLOBAL CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -307,7 +309,6 @@ def _create_jobs_and_schedules(filtered_groups, all_groups):
         if not group_name:
             continue
 
-        # Create job for this group
         job_name = f"replication_job_{group_name}"
         try:
             job = dg.define_asset_job(
@@ -319,14 +320,17 @@ def _create_jobs_and_schedules(filtered_groups, all_groups):
                     "group": group_name,
                     "type": "replication",
                 },
+                # SIMPLEST - Just parallel execution, no retries
+                executor_def=multiprocess_executor.configured({
+                    "max_concurrent": 8,
+                }),
             )
             jobs.append(job)
         except Exception as e:
             if not FAST_MODE:
                 print(f"⚠️ Failed to create job for {group_name}: {e}")
             continue
-
-        # Create staggered schedule for this job
+        
         schedule_hour, schedule_minute = _calculate_staggered_schedule(
             group_name, all_group_names
         )

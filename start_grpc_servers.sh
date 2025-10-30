@@ -105,15 +105,15 @@ start_server() {
     local wait_time=5  # Default
     case $prefix in
         "excl")
-            wait_time=30  # excl has ~30k assets
+            wait_time=40  # excl has ~30k assets
             log_info "⏳ Waiting ${wait_time}s for large excl prefix..."
             ;;
         "h"|"d"|"f"|"g")
-            wait_time=20  # h has ~15k assets
+            wait_time=30  # h has ~15k assets
             log_info "⏳ Waiting ${wait_time}s for medium h prefix (14,946 assets)..."
             ;;
         "ora"|"z")
-            wait_time=10   # Small prefixes
+            wait_time=15   # Small prefixes
             log_info "⏳ Waiting ${wait_time}s for small $prefix prefix..."
             ;;
     esac
