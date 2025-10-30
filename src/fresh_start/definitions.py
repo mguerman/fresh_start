@@ -525,14 +525,64 @@ def get_defs_for_prefix(prefix):
 
 # Check if worker process FIRST (critical for performance)
 if _is_worker_process():
-    print("⏩ Worker process detected - Skipping asset loading")
-    defs = dg.Definitions(
-        assets=[],
-        resources={},
-        jobs=[],
-        schedules=[],
-    )
+    print("⏩ Worker process detected - Using cached definitions")
+    
+    # Workers inherit the assets from the parent gRPC process via fork()
+    # So we don't need to rebuild them - just call get_defs() normally
+    # The fork() has already loaded everything into memory
+    
+    try:
+        # Just get the definitions normally
+        # The assets are already in memory from the parent process
+        defs = get_defs()
+        print(f"✅ Worker inherited definitions from parent process")
+        
+    except Exception as e:
+        print(f"❌ Worker failed to get definitions: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Fallback to empty definitions
+        defs = dg.Definitions(
+            assets=[],
+            resources={},
+            jobs=[],
+            schedules=[],
+        )
 else:
+    # This is a gRPC server or webserver - load full definitions
+    group_prefix = os.environ.get("GROUP_PREFIX")
+    
+    if group_prefix:
+        try:
+            defs = get_defs()
+            if not FAST_MODE:
+                print(f"📍 gRPC Server - Loaded {len(defs.assets)} assets for prefix: {group_prefix}")
+        except Exception as e:
+            print(f"❌ Failed to create definitions for {group_prefix}: {e}")
+            import traceback
+            traceback.print_exc()
+            defs = dg.Definitions(
+                assets=[],
+                resources={},
+                jobs=[],
+                schedules=[],
+            )
+    else:
+        try:
+            defs = get_defs()
+            if not FAST_MODE:
+                print(f"🌍 Local Mode - Loaded {len(defs.assets)} assets (all groups)")
+        except Exception as e:
+            print(f"⚠️ Local mode failed: {e}")
+            import traceback
+            traceback.print_exc()
+            defs = dg.Definitions(
+                assets=[],
+                resources={},
+                jobs=[],
+                schedules=[],
+            )
     # This is a gRPC server or webserver - load full definitions
     group_prefix = os.environ.get("GROUP_PREFIX")
     
