@@ -4,7 +4,7 @@
 set -e  # Exit on any error
 
 # Configuration
-DAGSTER_HOST="dagster.ist-apps-cnt-sb.bu.edu"  # From your workspace.yaml
+DAGSTER_HOST="localhost"  # From your workspace.yaml
 MODULE_NAME="src.fresh_start.definitions"
 
 declare -A SERVERS=(

@@ -21,7 +21,7 @@ declare -A SERVERS=(
     ["excl"]=4006
 )
 
-DAGSTER_HOST="dagster.ist-apps-cnt-sb.bu.edu"
+DAGSTER_HOST="localhost"
 
 check_server() {
     local prefix=$1
